@@ -32,7 +32,8 @@ class CriticNetwork(nn.Module):
         q2 = torch.relu(self.fc5(q2))
         q2 = self.fc6(q2)
 
-        return q1, q2
+        q = torch.hstack((q1, q2))
+        return q
 
 
 class PolicyNetwork(nn.Module):
@@ -114,21 +115,34 @@ class SACAgent:
 
         # Convert numpy arrays to torch tensors
         state = torch.tensor(state, dtype=torch.float, device=self.device)
-        action = torch.tensor(action, dtype=torch.int64, device=self.device).unsqueeze(1)
+        action = torch.tensor(action, dtype=torch.int64, device=self.device)
         reward = torch.tensor(reward, dtype=torch.int, device=self.device)
         next_state = torch.tensor(next_state, dtype=torch.float, device=self.device)
         done = torch.tensor(done, dtype=torch.int, device=self.device)
 
-        next_action_probs = self.pi(next_state)
-        m = Categorical(next_action_probs)
-        next_action = m.sample()
-        next_action = next_action.unsqueeze(-1)
-        q_values = self.Q_target(next_state, next_action)
+        # Compute targets for the Q functions
+        with torch.no_grad():
+            next_action_probs = self.pi(next_state)
+            m = Categorical(next_action_probs)
+            next_action_sample = m.sample()
+            next_action_log_prob = m.log_prob(next_action_sample)
 
-        breakpoint()
+            next_sa_q = self.Q_target(next_state, next_action_sample.unsqueeze(-1))
+            min_next_sa_q = torch.min(next_sa_q, dim=1).values
 
-        # y = reward + self.gamma * (1 - done) * \
-        #    (torch.min(torch.tensor([self.Q1_target(next_action), self.Q2_target(next_action)]), dim=0).values -)
+            y_target = reward + self.gamma * (1 - done) * (min_next_sa_q - self.temperature * next_action_log_prob)
+
+        # Compute loss function for the Q functions
+        sa_q = self.Q(state, action.unsqueeze(-1))
+        squared_error = (sa_q - y_target.unsqueeze(-1)) ** 2
+        mean_squared_error = torch.sum(squared_error, dim=0) / self.batch_size
+
+        q_loss = torch.sum(mean_squared_error)
+
+        # Perform gradient descent on the Q functions
+        self.optimizer_Q.zero_grad()
+        q_loss.backward()
+        self.optimizer_Q.step()
 
 
 if __name__ == "__main__":
