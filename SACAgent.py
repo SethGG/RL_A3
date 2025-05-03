@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.distributions import Categorical
 from collections import deque
@@ -7,85 +8,64 @@ import random
 import numpy as np
 
 
-class CriticNetwork(nn.Module):
-    def __init__(self, input_dim, device, hidden_dim):
-        super(CriticNetwork, self).__init__()
-        # Q1 layers
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, 1)
-        # Q2 layers
-        self.fc4 = nn.Linear(input_dim, hidden_dim)
-        self.fc5 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc6 = nn.Linear(hidden_dim, 1)
-        # Move the model to the specified device (CPU or GPU)
-        self.to(device)
-
-    def forward(self, state, action):
-        sa = torch.cat((state, action), dim=-1)
-        # Forward pass for Q1
-        q1 = torch.relu(self.fc1(sa))
-        q1 = torch.relu(self.fc2(q1))
-        q1 = self.fc3(q1)
-        # Forward pass for Q2
-        q2 = torch.relu(self.fc4(sa))
-        q2 = torch.relu(self.fc5(q2))
-        q2 = self.fc6(q2)
-
-        q = torch.hstack((q1, q2))
-        return q
-
-
-class PolicyNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, device, hidden_dim):
-        super(PolicyNetwork, self).__init__()
-        # Define a two-layer hidden network with one output layer
-        self.fc1 = nn.Linear(input_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc3 = nn.Linear(hidden_dim, output_dim)
-        # Move the model to the specified device (CPU or GPU)
-        self.to(device)
+class NeuralNetwork(nn.Module):
+    def __init__(self, state_dim, n_actions, hidden_dim, log_softmax=False):
+        super().__init__()
+        self.log_softmax = log_softmax
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, n_actions)
+        )
 
     def forward(self, state):
-        # Forward pass through the network:
-        x = torch.relu(self.fc1(state))
-        x = torch.relu(self.fc2(x))
-        x = torch.softmax(self.fc3(x), dim=-1)  # apply softmax for probability distribution
-
-        return x
+        logits = self.net(state)
+        if self.log_softmax:
+            return torch.log_softmax(logits, dim=-1)
+        else:
+            return logits
 
 
 class SACAgent:
-    def __init__(self, state_dim, n_actions, learning_rate, gamma, hidden_dim, temperature, memory_size, batch_size, update_freq):
+    def __init__(self, state_dim, n_actions, lr, gamma, hidden_dim, alpha, buffer_size, batch_size, tau,
+                 full_expectation, double_q):
         self.gamma = gamma
-        self.temperature = temperature
+        self.alpha = alpha
         self.batch_size = batch_size
+        self.full_expectation = full_expectation
+        self.double_q = double_q
 
         # Set device (GPU if available, else CPU)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Policy network: outputs a probability distribution over actions
-        self.pi = PolicyNetwork(state_dim, n_actions, self.device, hidden_dim)
-        self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=learning_rate)
+        self.pi = NeuralNetwork(state_dim, n_actions, hidden_dim, log_softmax=True).to(self.device)
+        self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=lr)
 
-        # Q networks (double-Q)
-        self.Q = CriticNetwork(state_dim + 1, self.device, hidden_dim)
-        self.optimizer_Q = optim.Adam(self.Q.parameters(), lr=learning_rate)
+        # Q network and target network
+        self.Q1 = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+        self.Q1_optim = optim.Adam(self.Q1.parameters(), lr=lr)
+        self.Q1_target = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+        self.Q1_target.load_state_dict(self.Q1.state_dict())
 
-        # Q target networks
-        self.Q_target = CriticNetwork(state_dim + 1, self.device, hidden_dim)
-        self.Q_target.load_state_dict(self.Q.state_dict())
+        # Double Q trick
+        if self.double_q:
+            self.Q2 = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+            self.Q2_optim = optim.Adam(self.Q2.parameters(), lr=lr)
+            self.Q2_target = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+            self.Q2_target.load_state_dict(self.Q2.state_dict())
 
         # Initialize replay buffer
-        self.replay_buffer = deque(maxlen=memory_size)
+        self.replay_buffer = deque(maxlen=buffer_size)
         self.update_count = 0
-        self.update_freq = update_freq
 
     def select_action_sample(self, state):
         # Convert state to tensor and forward through policy network to get probabilities
         state = torch.tensor(state, dtype=torch.float, device=self.device)
         with torch.no_grad():
-            action_probs = self.pi.forward(state)
+            action_probs = self.pi(state)
         # Create a categorical distribution from the probabilities and sample an action
         m = Categorical(action_probs)
         action = m.sample().item()
@@ -95,58 +75,69 @@ class SACAgent:
         # For evaluation, choose the action with the highest probability
         state = torch.tensor(state, dtype=torch.float, device=self.device)
         with torch.no_grad():
-            action_probs = self.pi.forward(state)
+            action_probs = self.pi(state)
         action = torch.argmax(action_probs).item()
         return action
 
-    def update(self, state, action, reward, next_state, done):
-        self.update_count += 1
+    def add_experience(self, state, action, reward, next_state, done):
         self.replay_buffer.append((state, action, reward, next_state, done))
-        if len(self.replay_buffer) < self.batch_size * 2:
-            return
 
-        if self.update_count < self.update_freq:
+    def update(self):
+        if len(self.replay_buffer) < self.batch_size:
             return
-
-        self.update_count = 0
 
         batch = random.sample(self.replay_buffer, self.batch_size)
-        state, action, reward, next_state, done = (np.array(x) for x in zip(*batch))
+        state, action, reward, next_state, done = zip(*batch)
 
         # Convert numpy arrays to torch tensors
         state = torch.tensor(state, dtype=torch.float, device=self.device)
-        action = torch.tensor(action, dtype=torch.int64, device=self.device)
+        action = torch.tensor(action, dtype=torch.int64, device=self.device).unsqueeze(-1)
         reward = torch.tensor(reward, dtype=torch.int, device=self.device)
         next_state = torch.tensor(next_state, dtype=torch.float, device=self.device)
         done = torch.tensor(done, dtype=torch.int, device=self.device)
 
-        # Compute targets for the Q functions
         with torch.no_grad():
-            next_action_probs = self.pi(next_state)
-            m = Categorical(next_action_probs)
-            next_action_sample = m.sample()
-            next_action_log_prob = m.log_prob(next_action_sample)
+            q1_next_state = self.Q1_target(next_state)
+            if self.double_q:
+                q2_next_state = self.Q2_target(next_state)
+                q_next_state = torch.min(q1_next_state, q2_next_state)
+            else:
+                q_next_state = q1_next_state
 
-            next_sa_q = self.Q_target(next_state, next_action_sample.unsqueeze(-1))
-            min_next_sa_q = torch.min(next_sa_q, dim=1).values
+            log_probs_next_action = self.pi(next_state)
+            probs_next_action = torch.exp(log_probs_next_action)
+            if self.full_expectation:
+                v_next_action = torch.sum(probs_next_action * (q_next_state - self.alpha * log_probs_next_action),
+                                          dim=1, keepdim=True)
+            else:
+                next_action_sample = torch.multinomial(probs_next_action, num_samples=1)
+                log_prob_next_action_sample = torch.gather(log_probs_next_action, 1, next_action_sample)
+                q_next_state_action = torch.gather(q_next_state, 1, next_action_sample)
+                v_next_action = q_next_state_action - self.alpha * log_prob_next_action_sample
 
-            y_target = reward + self.gamma * (1 - done) * (min_next_sa_q - self.temperature * next_action_log_prob)
+            q_target = reward + self.gamma * (1 - done) * v_next_action
 
-        # Compute loss function for the Q functions
-        sa_q = self.Q(state, action.unsqueeze(-1))
-        squared_error = (sa_q - y_target.unsqueeze(-1)) ** 2
-        mean_squared_error = torch.sum(squared_error, dim=0) / self.batch_size
+        q1_values = self.Q1(state)
+        q1_current = torch.gather(q1_values, 1, action)
 
-        q_loss = torch.sum(mean_squared_error)
+        q1_loss = F.mse_loss(q1_current, q_target)
+        self.Q1_optim.zero_grad()
+        q1_loss.backward()
+        self.Q1_optim.step()
 
-        # Perform gradient descent on the Q functions
-        self.optimizer_Q.zero_grad()
-        q_loss.backward()
-        self.optimizer_Q.step()
+        if self.double_q:
+            q2_values = self.Q2(state)
+            q2_current = torch.gather(q2_values, 1, action)
+
+            q2_loss = F.mse_loss(q2_current, q_target)
+            self.Q2_optim.zero_grad()
+            q2_loss.backward()
+            self.Q2_optim.step()
 
 
 if __name__ == "__main__":
-    test = SACAgent(state_dim=4, n_actions=2, learning_rate=0.001, gamma=1,
-                    hidden_dim=128, temperature=1, memory_size=6, batch_size=3, update_freq=1)
+    test = SACAgent(state_dim=4, n_actions=2, lr=0.001, gamma=1, hidden_dim=128, alpha=0.2, buffer_size=100000,
+                    batch_size=5, tau=0.005, full_expectation=True, double_q=True)
     while True:
-        test.update(np.random.sample(4), 1, 1, np.random.sample(4), 0)
+        test.add_experience(np.random.sample(4), 1, 1, np.random.sample(4), 0)
+        test.update()
