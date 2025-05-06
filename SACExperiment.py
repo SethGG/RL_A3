@@ -119,14 +119,17 @@ def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_inte
 
 if __name__ == '__main__':
     param_combinations = [
-        {"lr": 0.001, "gamma": 1, "hidden_dim": 128, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True, "update_freq": 50}
+        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True, "update_freq": 50},
+        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": True, "update_freq": 50}
     ]
 
-    n_repetitions = 1  # Number of repetitions for each experiment
+    n_repetitions = 3  # Number of repetitions for each experiment
     n_envsteps = 100000  # Number of environment steps
     eval_interval = 1000  # Interval for evaluation
     outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
     run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
-    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, "Test", [], "test.png")
+    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, "Test", ["full_expectation"],
+                "test.png")

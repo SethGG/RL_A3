@@ -81,6 +81,11 @@ class SACAgent:
         return a
 
     def add_experience(self, s, a, r, next_s, d):
+        s = torch.tensor(s, dtype=torch.float, device=self.device)
+        a = torch.tensor(a, dtype=torch.int64, device=self.device)
+        r = torch.tensor(r, dtype=torch.float, device=self.device)
+        next_s = torch.tensor(next_s, dtype=torch.float, device=self.device)
+        d = torch.tensor(d, dtype=torch.float, device=self.device)
         self.replay_buffer.append((s, a, r, next_s, d))
 
     def update(self):
@@ -88,14 +93,13 @@ class SACAgent:
             return
 
         batch = random.sample(self.replay_buffer, self.batch_size)
-        s, a, r, next_s, d = (np.array(x) for x in zip(*batch))
+        s, a, r, next_s, d = zip(*batch)
 
-        # Convert numpy arrays to torch tensors
-        s = torch.tensor(s, dtype=torch.float, device=self.device)
-        a = torch.tensor(a, dtype=torch.int64, device=self.device).unsqueeze(-1)
-        r = torch.tensor(r, dtype=torch.int, device=self.device).unsqueeze(-1)
-        next_s = torch.tensor(next_s, dtype=torch.float, device=self.device)
-        d = torch.tensor(d, dtype=torch.int, device=self.device).unsqueeze(-1)
+        s = torch.stack(s)
+        a = torch.stack(a).unsqueeze(-1)
+        r = torch.stack(r).unsqueeze(-1)
+        next_s = torch.stack(next_s)
+        d = torch.stack(d).unsqueeze(-1)
 
         # Calculate Q-network targets
         with torch.no_grad():
@@ -153,7 +157,7 @@ class SACAgent:
             sampled_a = torch.multinomial(probs_s, num_samples=1)
             log_probs_sa = log_probs_s.gather(1, sampled_a)
             q_sa = q_s.gather(1, sampled_a)
-            policy_loss = (self.alpha * log_probs_sa - q_sa).mean()
+            policy_loss = (log_probs_sa * (self.alpha * log_probs_sa - q_sa)).mean()
 
         self.optimizer_pi.zero_grad()
         policy_loss.backward()
