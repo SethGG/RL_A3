@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions import Categorical
 from collections import deque
 import random
 import numpy as np
@@ -29,11 +28,12 @@ class NeuralNetwork(nn.Module):
 
 
 class SACAgent:
-    def __init__(self, state_dim, n_actions, lr, gamma, hidden_dim, alpha, buffer_size, batch_size, tau,
-                 full_expectation, double_q):
+    def __init__(self, state_dim, n_actions, lr, gamma, hidden_dim, alpha, buffer_size, batch_size, learning_starts,
+                 tau, full_expectation, double_q):
         self.gamma = gamma
         self.alpha = alpha
         self.batch_size = batch_size
+        self.learning_starts = learning_starts
         self.tau = tau
 
         self.full_expectation = full_expectation
@@ -84,11 +84,11 @@ class SACAgent:
         self.replay_buffer.append((s, a, r, next_s, d))
 
     def update(self):
-        if len(self.replay_buffer) < self.batch_size:
+        if len(self.replay_buffer) < self.learning_starts:
             return
 
         batch = random.sample(self.replay_buffer, self.batch_size)
-        s, a, r, next_s, d = zip(*batch)
+        s, a, r, next_s, d = (np.array(x) for x in zip(*batch))
 
         # Convert numpy arrays to torch tensors
         s = torch.tensor(s, dtype=torch.float, device=self.device)

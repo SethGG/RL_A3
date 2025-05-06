@@ -26,6 +26,8 @@ def run_single_repetition(task):
     config_id, rep_id, n_envsteps, eval_interval, params = task
     params = params.copy()
 
+    update_freq = params.pop("update_freq")
+
     # Create a new environment and agent for each repetition
     env = gym.make('CartPole-v1')
     params["state_dim"] = env.observation_space.shape[0]
@@ -41,7 +43,11 @@ def run_single_repetition(task):
         a = agent.select_action_sample(s)
         s_next, r, done, trunc, info = env.step(a)
         agent.add_experience(s, a, r, s_next, done)
-        agent.update()
+
+        if envstep % update_freq == 0:
+            for _ in range(update_freq):
+                agent.update()
+
         s = s_next
 
         if done or trunc:
@@ -96,7 +102,7 @@ def run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_
 
 def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, title, label_params, plotfile):
     # Create plots for the experiment results
-    smoothing_window = 31
+    smoothing_window = 3
     plot = LearningCurvePlot(title)
 
     for params in param_combinations:
@@ -113,12 +119,12 @@ def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_inte
 
 if __name__ == '__main__':
     param_combinations = [
-        {"lr": 1e-3, "gamma": 1, "hidden_dim": 128, "alpha": 0.2, "buffer_size": 1e5, "batch_size": 64, "tau": 5e-3,
-         "full_expectation": True, "double_q": True}
+        {"lr": 0.001, "gamma": 1, "hidden_dim": 128, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True, "update_freq": 50}
     ]
 
     n_repetitions = 1  # Number of repetitions for each experiment
-    n_envsteps = 10000  # Number of environment steps
+    n_envsteps = 100000  # Number of environment steps
     eval_interval = 1000  # Interval for evaluation
     outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
