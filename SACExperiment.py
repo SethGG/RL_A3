@@ -27,6 +27,7 @@ def run_single_repetition(task):
     params = params.copy()
 
     update_freq = params.pop("update_freq")
+    update_num = params.pop("update_num")
 
     # Create a new environment and agent for each repetition
     env = gym.make('CartPole-v1')
@@ -45,7 +46,7 @@ def run_single_repetition(task):
         agent.add_experience(s, a, r, s_next, done)
 
         if envstep % update_freq == 0:
-            for _ in range(update_freq):
+            for _ in range(update_num):
                 agent.update()
 
         s = s_next
@@ -120,16 +121,24 @@ def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_inte
 if __name__ == '__main__':
     param_combinations = [
         {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True, "update_freq": 50},
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
+         "update_freq": 50, "update_num": 5},
         {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": True, "update_freq": 50}
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": True,
+         "update_freq": 50, "update_num": 5},
+        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": False,
+         "update_freq": 50, "update_num": 5},
+        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+         "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": False,
+         "update_freq": 50, "update_num": 5}
     ]
 
-    n_repetitions = 3  # Number of repetitions for each experiment
-    n_envsteps = 100000  # Number of environment steps
+    n_repetitions = 5  # Number of repetitions for each experiment
+    n_envsteps = 1000000  # Number of environment steps
     eval_interval = 1000  # Interval for evaluation
     outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
     run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
-    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, "Test", ["full_expectation"],
-                "test.png")
+    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, "Test",
+                ["full_expectation", "double_q"], "test.png")

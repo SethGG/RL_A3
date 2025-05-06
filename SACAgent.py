@@ -4,7 +4,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 from collections import deque
 import random
-import numpy as np
 
 
 class NeuralNetwork(nn.Module):
