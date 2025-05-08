@@ -103,7 +103,7 @@ def run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_
 
 def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, title, label_params, plotfile):
     # Create plots for the experiment results
-    smoothing_window = 3
+    smoothing_window = 31
     plot = LearningCurvePlot(title)
 
     for params in param_combinations:
@@ -120,22 +120,29 @@ def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_inte
 
 if __name__ == '__main__':
     param_combinations = [
-        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+        # "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
+        # "update_freq": 50, "update_num": 5},
+        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+        # "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": True,
+        # "update_freq": 50, "update_num": 5},
+        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+        # "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": False,
+        # "update_freq": 50, "update_num": 5},
+        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
+        # "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": False,
+        # "update_freq": 50, "update_num": 5},
+        # Trying to find best config
+        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 100_000, "batch_size": 100,
          "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
-         "update_freq": 50, "update_num": 5},
-        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": True,
-         "update_freq": 50, "update_num": 5},
-        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": False,
-         "update_freq": 50, "update_num": 5},
-        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": False,
-         "update_freq": 50, "update_num": 5}
+         "update_freq": 5, "update_num": 1},
+        # {"lr": 0.0005, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 100_000, "batch_size": 100,
+        # "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
+        # "update_freq": 5, "update_num": 1}
     ]
 
-    n_repetitions = 5  # Number of repetitions for each experiment
-    n_envsteps = 1000000  # Number of environment steps
+    n_repetitions = 3  # Number of repetitions for each experiment
+    n_envsteps = 1_000_000  # Number of environment steps
     eval_interval = 1000  # Interval for evaluation
     outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
