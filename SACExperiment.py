@@ -119,33 +119,37 @@ def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_inte
 
 
 if __name__ == '__main__':
+    baseline_params = {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.5, "buffer_size": 100_000,
+                       "batch_size": 100, "learning_starts": 1000, "tau": 0.005, "full_expectation": True,
+                       "double_q": True, "update_freq": 5, "update_num": 1}
+
+    def change_params(changes):
+        new_params = baseline_params.copy()
+        new_params.update(changes)
+        return new_params
+
     param_combinations = [
-        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-        # "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
-        # "update_freq": 50, "update_num": 5},
-        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-        # "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": True,
-        # "update_freq": 50, "update_num": 5},
-        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-        # "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": False,
-        # "update_freq": 50, "update_num": 5},
-        # {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 10000, "batch_size": 100,
-        # "learning_starts": 1000, "tau": 0.005, "full_expectation": False, "double_q": False,
-        # "update_freq": 50, "update_num": 5},
-        # Trying to find best config
-        {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 100_000, "batch_size": 100,
-         "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
-         "update_freq": 5, "update_num": 1},
-        # {"lr": 0.0005, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.2, "buffer_size": 100_000, "batch_size": 100,
-        # "learning_starts": 1000, "tau": 0.005, "full_expectation": True, "double_q": True,
-        # "update_freq": 5, "update_num": 1}
+        # Experiment 1
+        change_params({"alpha": 0.0}),
+        change_params({"alpha": 0.2}),
+        baseline_params,
+        change_params({"alpha": 1.0}),
+        # Experiment 2
+        baseline_params,
+        change_params({"double_q": False}),
+        change_params({"full_expectation": False}),
+        change_params({"full_expectation": False, "double_q": False}),
     ]
 
-    n_repetitions = 3  # Number of repetitions for each experiment
+    n_repetitions = 5  # Number of repetitions for each experiment
     n_envsteps = 1_000_000  # Number of environment steps
     eval_interval = 1000  # Interval for evaluation
     outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
     run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
-    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, "Test",
-                ["full_expectation", "double_q"], "test.png")
+    create_plot(outdir, param_combinations[:4], n_repetitions, n_envsteps, eval_interval,
+                "Discrete SAC Learning Curve: Effect of alpha",
+                ["alpha"], "alpha.png")
+    create_plot(outdir, param_combinations[4:], n_repetitions, n_envsteps, eval_interval,
+                "Discrete SAC Learning Curve:\nEffects of Full Expectation Updates and Clipped Double Q-learning",
+                ["full_expectation", "double_q"], "tricks.png")
