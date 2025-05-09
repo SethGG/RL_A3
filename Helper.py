@@ -23,24 +23,24 @@ class LearningCurvePlot:
       else:
          self.ax.plot(x, y)
 
-def add_epsilon_curve(self, x, epsilon):
-   """ x: vector of environment steps
-       epsilon: vector of epsilon values over time """
-   if self.ax2 is None:
-      self.ax2 = self.ax.twinx()
-      self.ax2.set_ylabel('Epsilon')  # Set label for secondary y-axis
-   self.ax2.plot(x, epsilon, linestyle='--')
+   def add_epsilon_curve(self, x, epsilon):
+      """ x: vector of environment steps
+          epsilon: vector of epsilon values over time """
+      if self.ax2 is None:
+         self.ax2 = self.ax.twinx()
+         self.ax2.set_ylabel('Epsilon')  # Set label for secondary y-axis
+      self.ax2.plot(x, epsilon, linestyle='--')
 
-def set_ylim(self, lower, upper):
-   self.ax.set_ylim([lower, upper])
+   def set_ylim(self, lower, upper):
+      self.ax.set_ylim([lower, upper])
 
-def add_hline(self, height, label):
-   self.ax.axhline(height, ls='--', c='k', label=label)
+   def add_hline(self, height, label):
+      self.ax.axhline(height, ls='--', c='k', label=label)
 
-def save(self, name='test.png'):
-   """ name: string for filename of saved figure """
-   self.ax.legend()
-   self.fig.savefig(name, dpi=300)
+   def save(self, name='test.png'):
+      """ name: string for filename of saved figure """
+      self.ax.legend()
+      self.fig.savefig(name, dpi=300)
 
 
 def smooth(y, window, poly=1):

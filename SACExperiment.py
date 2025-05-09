@@ -1,9 +1,11 @@
-import numpy as np
+import os
+
 import gymnasium as gym
+import numpy as np
+import torch.multiprocessing as mp
+
 from Helper import LearningCurvePlot, smooth
 from SACAgent import SACAgent
-import os
-import torch.multiprocessing as mp
 
 
 def evaluation(agent: SACAgent):
@@ -40,7 +42,7 @@ def run_single_repetition(task):
    eval_num = 0
 
    s, info = env.reset()
-   for envstep in range(1, n_envsteps+1):
+   for envstep in range(1, n_envsteps + 1):
       a = agent.select_action_sample(s)
       s_next, r, done, trunc, info = env.step(a)
       agent.add_experience(s, a, r, s_next, done)
@@ -59,8 +61,10 @@ def run_single_repetition(task):
          eval_return = evaluation(agent)
          eval_returns[eval_num] = eval_return
          eval_num += 1
-         print(f"Running config: {config_id+1:2}, Repetition {rep_id+1:2}, Environment steps: {envstep:6}, "
-               f"Eval return: {eval_return:3}")
+         print(
+            f"Running config: {config_id + 1:2}, Repetition {rep_id + 1:2}, Environment steps: "
+            f"{envstep:6}, "
+            f"Eval return: {eval_return:3}")
 
    return config_id, eval_returns
 
@@ -80,10 +84,10 @@ def run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_
    tasks = []
    for config_id, params in enumerate(param_combinations):
       if params in (t[-1] for t in tasks):
-         print(f"Configuration {config_id+1} is already present in the task list. Skipping...")
+         print(f"Configuration {config_id + 1} is already present in the task list. Skipping...")
          continue
       if os.path.exists(conf_filename(outdir, params, "eval")):
-         print(f"Results for configuration {config_id+1} already exist. Skipping...")
+         print(f"Results for configuration {config_id + 1} already exist. Skipping...")
          continue
       tasks.extend(
          (config_id, rep_id, n_envsteps, eval_interval, params)
@@ -99,10 +103,12 @@ def run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_
 
          if len(results_by_config[config_id]) == n_repetitions:
             results_eval = np.array(results_by_config[config_id])
-            np.savetxt(conf_filename(outdir, param_combinations[config_id], "eval"), results_eval, delimiter=",")
+            np.savetxt(conf_filename(outdir, param_combinations[config_id], "eval"), results_eval,
+                       delimiter=",")
 
 
-def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, title, label_params, plotfile):
+def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval, title,
+                label_params, plotfile):
    # Create plots for the experiment results
    smoothing_window = 31
    plot = LearningCurvePlot(title)
@@ -112,45 +118,54 @@ def create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_inte
       mean_results_eval = np.mean(results_eval, axis=0)
       conf_results_eval = np.std(results_eval, axis=0) / np.sqrt(n_repetitions)
 
-      plot.add_curve(range(eval_interval, n_envsteps+eval_interval, eval_interval), smooth(mean_results_eval,
-                                                                                           window=smoothing_window), smooth(conf_results_eval, window=smoothing_window),
+      plot.add_curve(range(eval_interval, n_envsteps + eval_interval, eval_interval),
+                     smooth(mean_results_eval,
+                            window=smoothing_window),
+                     smooth(conf_results_eval, window=smoothing_window),
                      label=", ".join(f"{p}: {params[p]}" for p in label_params if p in params))
 
    plot.save(name=plotfile)
 
 
 if __name__ == '__main__':
-    baseline_params = {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.5, "buffer_size": 100_000,
-                       "batch_size": 100, "learning_starts": 1000, "tau": 0.005, "full_expectation": True,
-                       "double_q": True, "update_freq": 5, "update_num": 1}
+   baseline_params = {"lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.5,
+                      "buffer_size": 100_000,
+                      "batch_size": 100, "learning_starts": 1000, "tau": 0.005,
+                      "full_expectation": True,
+                      "double_q": True, "update_freq": 5, "update_num": 1}
 
-    def change_params(changes):
-        new_params = baseline_params.copy()
-        new_params.update(changes)
-        return new_params
 
-    param_combinations = [
-        # Experiment 1
-        change_params({"alpha": 0.0}),
-        change_params({"alpha": 0.2}),
-        baseline_params,
-        change_params({"alpha": 1.0}),
-        # Experiment 2
-        baseline_params,
-        change_params({"double_q": False}),
-        change_params({"full_expectation": False}),
-        change_params({"full_expectation": False, "double_q": False}),
-    ]
+   def change_params(changes):
+      new_params = baseline_params.copy()
+      new_params.update(changes)
+      return new_params
 
-    n_repetitions = 5  # Number of repetitions for each experiment
-    n_envsteps = 1_000_000  # Number of environment steps
-    eval_interval = 1000  # Interval for evaluation
-    outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
-    run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
-    create_plot(outdir, param_combinations[:4], n_repetitions, n_envsteps, eval_interval,
-                "Discrete SAC Learning Curve: Effect of alpha",
-                ["alpha"], "alpha.png")
-    create_plot(outdir, param_combinations[4:], n_repetitions, n_envsteps, eval_interval,
-                "Discrete SAC Learning Curve:\nEffects of Full Expectation Updates and Clipped Double Q-learning",
-                ["full_expectation", "double_q"], "tricks.png")
+   param_combinations = [
+      # Experiment 1
+      change_params({"alpha": 0.3}),
+      change_params({"alpha": 0.4}),
+      baseline_params,
+      change_params({"alpha": 0.6}),
+      change_params({"alpha": 0.7}),
+      # Experiment 2
+      # baseline_params,
+      # change_params({"double_q": False}),
+      # change_params({"full_expectation": False}),
+      # change_params({"full_expectation": False, "double_q": False}),
+   ]
+
+   n_repetitions = 5  # Number of repetitions for each experiment
+   #n_envsteps = 200_000
+   n_envsteps = 1_000_000  # Number of environment steps
+   eval_interval = 1000  # Interval for evaluation
+   outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
+
+   run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
+   create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval,
+               "Discrete SAC Learning Curve: Effect of alpha",
+               ["alpha"], "alphalong.png")
+   # create_plot(outdir, param_combinations[4:], n_repetitions, n_envsteps, eval_interval,
+   #             "Discrete SAC Learning Curve:\nEffects of Full Expectation Updates and Clipped "
+   #             "Double Q-learning",
+   #             ["full_expectation", "double_q"], "tricks.png")
