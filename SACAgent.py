@@ -7,164 +7,170 @@ import random
 
 
 class NeuralNetwork(nn.Module):
-    def __init__(self, state_dim, n_actions, hidden_dim, log_softmax=False):
-        super().__init__()
-        self.log_softmax = log_softmax
-        self.net = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, n_actions)
-        )
+   def __init__(self, state_dim, n_actions, hidden_dim, log_softmax=False):
+      super().__init__()
+      self.log_softmax = log_softmax
+      self.net = nn.Sequential(
+         nn.Linear(state_dim, hidden_dim),
+         nn.ReLU(),
+         nn.Linear(hidden_dim, hidden_dim),
+         nn.ReLU(),
+         nn.Linear(hidden_dim, n_actions)
+      )
 
-    def forward(self, state):
-        logits = self.net(state)
-        if self.log_softmax:
-            return torch.log_softmax(logits, dim=-1)
-        else:
-            return logits
+   def forward(self, state):
+      logits = self.net(state)
+      return torch.log_softmax(logits, dim=-1) if self.log_softmax else logits
 
 
 class SACAgent:
-    def __init__(self, state_dim, n_actions, lr, gamma, hidden_dim, alpha, buffer_size, batch_size, learning_starts,
-                 tau, full_expectation, double_q):
-        self.gamma = gamma
-        self.alpha = alpha
-        self.batch_size = batch_size
-        self.learning_starts = learning_starts
-        self.tau = tau
+   def __init__(self, state_dim, n_actions, lr, gamma, hidden_dim, alpha, buffer_size, batch_size, learning_starts,
+                tau, full_expectation, double_q):
+      self.gamma = gamma
+      self.alpha = alpha
+      self.buffer_size = buffer_size
+      self.batch_size = batch_size
+      self.learning_starts = learning_starts
+      self.tau = tau
 
-        self.full_expectation = full_expectation
-        self.double_q = double_q
+      self.full_expectation = full_expectation
+      self.double_q = double_q
 
-        # Set device (GPU if available, else CPU)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+      # Set device (GPU if available, else CPU)
+      self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Policy network: outputs a probability distribution over actions
-        self.pi = NeuralNetwork(state_dim, n_actions, hidden_dim, log_softmax=True).to(self.device)
-        self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=lr)
+      # Policy network: outputs a probability distribution over actions
+      self.pi = NeuralNetwork(state_dim, n_actions, hidden_dim, log_softmax=True).to(self.device)
+      self.optimizer_pi = optim.Adam(self.pi.parameters(), lr=lr)
 
-        # Q network and target network
-        self.Q1 = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
-        self.Q1_optim = optim.Adam(self.Q1.parameters(), lr=lr)
-        self.Q1_target = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
-        self.Q1_target.load_state_dict(self.Q1.state_dict())
+      # Q network and target network
+      self.Q1 = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+      self.Q1_optim = optim.Adam(self.Q1.parameters(), lr=lr)
+      self.Q1_target = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+      self.Q1_target.load_state_dict(self.Q1.state_dict())
 
-        # Double Q trick
-        if self.double_q:
-            self.Q2 = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
-            self.Q2_optim = optim.Adam(self.Q2.parameters(), lr=lr)
-            self.Q2_target = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
-            self.Q2_target.load_state_dict(self.Q2.state_dict())
+      # Double Q trick
+      if self.double_q:
+         self.Q2 = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+         self.Q2_optim = optim.Adam(self.Q2.parameters(), lr=lr)
+         self.Q2_target = NeuralNetwork(state_dim, n_actions, hidden_dim).to(self.device)
+         self.Q2_target.load_state_dict(self.Q2.state_dict())
 
-        # Initialize replay buffer
-        self.replay_buffer = deque(maxlen=buffer_size)
-        self.update_count = 0
+      # Initialize replay buffer
+      self.replay_buffer = {
+         "s": torch.empty((self.buffer_size, state_dim), dtype=torch.float, device=self.device),
+         "a": torch.empty((self.buffer_size, 1), dtype=torch.int64, device=self.device),
+         "r": torch.empty((self.buffer_size, 1), dtype=torch.float, device=self.device),
+         "next_s": torch.empty((self.buffer_size, state_dim), dtype=torch.float, device=self.device),
+         "d": torch.empty((self.buffer_size, 1), dtype=torch.float, device=self.device),
+      }
+      self.buffer_index = 0
+      self.update_count = 0
 
-    def select_action_sample(self, s):
-        # Convert state to tensor and forward through policy network to get probabilities
-        s = torch.tensor(s, dtype=torch.float, device=self.device)
-        with torch.no_grad():
-            log_probs_s = self.pi(s)
-        probs_s = log_probs_s.exp()
-        a = torch.multinomial(probs_s, num_samples=1).item()
-        return a
+   def add_experience(self, s, a, r, next_s, d):
+      idx = self.buffer_index % self.buffer_size
+      self.replay_buffer["s"][idx] = torch.tensor(s, dtype=torch.float, device=self.device)
+      self.replay_buffer["a"][idx] = torch.tensor(a, dtype=torch.int64, device=self.device)
+      self.replay_buffer["r"][idx] = torch.tensor(r, dtype=torch.float, device=self.device)
+      self.replay_buffer["next_s"][idx] = torch.tensor(next_s, dtype=torch.float, device=self.device)
+      self.replay_buffer["d"][idx] = torch.tensor(d, dtype=torch.float, device=self.device)
+      self.buffer_index += 1
 
-    def select_action_greedy(self, s):
-        # For evaluation, choose the action with the highest probability
-        s = torch.tensor(s, dtype=torch.float, device=self.device)
-        with torch.no_grad():
-            log_probs_s = self.pi(s)
-        a = torch.argmax(log_probs_s).item()
-        return a
+   def sample_batch(self):
+      indices = torch.randint(0, min(self.buffer_index, self.buffer_size), (self.batch_size,), device=self.device)
+      return {key: value[indices] for key, value in self.replay_buffer.items()}
 
-    def add_experience(self, s, a, r, next_s, d):
-        s = torch.tensor(s, dtype=torch.float, device=self.device)
-        a = torch.tensor(a, dtype=torch.int64, device=self.device)
-        r = torch.tensor(r, dtype=torch.float, device=self.device)
-        next_s = torch.tensor(next_s, dtype=torch.float, device=self.device)
-        d = torch.tensor(d, dtype=torch.float, device=self.device)
-        self.replay_buffer.append((s, a, r, next_s, d))
+   def select_action_sample(self, s):
+      # Convert state to tensor and forward through policy network to get probabilities
+      s = torch.tensor(s, dtype=torch.float, device=self.device)
+      with torch.no_grad():
+         log_probs_s = self.pi(s)
+      probs_s = log_probs_s.exp()
+      return torch.multinomial(probs_s, num_samples=1).item()
 
-    def update(self):
-        if len(self.replay_buffer) < self.learning_starts:
-            return
+   def select_action_greedy(self, s):
+      # For evaluation, choose the action with the highest probability
+      s = torch.tensor(s, dtype=torch.float, device=self.device)
+      with torch.no_grad():
+         log_probs_s = self.pi(s)
+      return torch.argmax(log_probs_s).item()
 
-        batch = random.sample(self.replay_buffer, self.batch_size)
-        s, a, r, next_s, d = zip(*batch)
+   def update(self):
+      if len(self.replay_buffer) < self.learning_starts:
+         return
 
-        s = torch.stack(s)
-        a = torch.stack(a).unsqueeze(-1)
-        r = torch.stack(r).unsqueeze(-1)
-        next_s = torch.stack(next_s)
-        d = torch.stack(d).unsqueeze(-1)
+      batch = self.sample_batch()
+      s = batch["s"]
+      a = batch["a"]
+      r = batch["r"]
+      next_s = batch["next_s"]
+      d = batch["d"]
 
-        # Calculate Q-network targets
-        with torch.no_grad():
-            q1_next_s = self.Q1_target(next_s)
-            if self.double_q:
-                q2_next_s = self.Q2_target(next_s)
-                q_next_s = torch.min(q1_next_s, q2_next_s)
-            else:
-                q_next_s = q1_next_s
+      # Calculate Q-network targets
+      with torch.no_grad():
+         q1_next_s = self.Q1_target(next_s)
+         if self.double_q:
+            q2_next_s = self.Q2_target(next_s)
+            q_next_s = torch.min(q1_next_s, q2_next_s)
+         else:
+            q_next_s = q1_next_s
 
-            log_probs_next_s = self.pi(next_s)
-            probs_next_s = log_probs_next_s.exp()
-            if self.full_expectation:
-                v_next_s = (probs_next_s * (q_next_s - self.alpha * log_probs_next_s)).sum(dim=1, keepdim=True)
-            else:
-                sampled_next_a = torch.multinomial(probs_next_s, num_samples=1)
-                log_probs_next_sa = log_probs_next_s.gather(1, sampled_next_a)
-                q_next_sa = q_next_s.gather(1, sampled_next_a)
-                v_next_s = q_next_sa - self.alpha * log_probs_next_sa
+         log_probs_next_s = self.pi(next_s)
+         probs_next_s = log_probs_next_s.exp()
+         if self.full_expectation:
+            v_next_s = (probs_next_s * (q_next_s - self.alpha * log_probs_next_s)).sum(dim=1, keepdim=True)
+         else:
+            sampled_next_a = torch.multinomial(probs_next_s, num_samples=1)
+            log_probs_next_sa = log_probs_next_s.gather(1, sampled_next_a)
+            q_next_sa = q_next_s.gather(1, sampled_next_a)
+            v_next_s = q_next_sa - self.alpha * log_probs_next_sa
 
-            q_target = r + self.gamma * (1 - d) * v_next_s
+         q_target = r + self.gamma * (1 - d) * v_next_s
 
-        # Gather current Q-netwok values
-        q1_s = self.Q1(s)
-        q1_sa = q1_s.gather(1, a)
+      # Gather current Q-netwok values
+      q1_s = self.Q1(s)
+      q1_sa = q1_s.gather(1, a)
 
-        # Update Q-networks
-        q1_loss = F.mse_loss(q1_sa, q_target)
-        self.Q1_optim.zero_grad()
-        q1_loss.backward()
-        self.Q1_optim.step()
+      # Update Q-networks
+      q1_loss = F.mse_loss(q1_sa, q_target)
+      self.Q1_optim.zero_grad()
+      q1_loss.backward()
+      self.Q1_optim.step()
 
-        if self.double_q:
-            q2_s = self.Q2(s)
-            q2_sa = q2_s.gather(1, a)
+      if self.double_q:
+         q2_s = self.Q2(s)
+         q2_sa = q2_s.gather(1, a)
 
-            q2_loss = F.mse_loss(q2_sa, q_target)
-            self.Q2_optim.zero_grad()
-            q2_loss.backward()
-            self.Q2_optim.step()
+         q2_loss = F.mse_loss(q2_sa, q_target)
+         self.Q2_optim.zero_grad()
+         q2_loss.backward()
+         self.Q2_optim.step()
 
-        # Policy update
-        log_probs_s = self.pi(s)
-        probs_s = log_probs_s.exp()
-        q1_s = self.Q1(s)
-        if self.double_q:
-            q2_s = self.Q2(s)
-            q_s = torch.min(q1_s, q2_s)
-        else:
-            q_s = q1_s
+      # Policy update
+      log_probs_s = self.pi(s)
+      probs_s = log_probs_s.exp()
+      q1_s = self.Q1(s)
+      if self.double_q:
+         q2_s = self.Q2(s)
+         q_s = torch.min(q1_s, q2_s)
+      else:
+         q_s = q1_s
 
-        if self.full_expectation:
-            policy_loss = (probs_s * (self.alpha * log_probs_s - q_s)).sum(dim=1).mean()
-        else:
-            sampled_a = torch.multinomial(probs_s, num_samples=1)
-            log_probs_sa = log_probs_s.gather(1, sampled_a)
-            q_sa = q_s.gather(1, sampled_a)
-            policy_loss = (log_probs_sa * (self.alpha * log_probs_sa - q_sa)).mean()
+      if self.full_expectation:
+         policy_loss = (probs_s * (self.alpha * log_probs_s - q_s)).sum(dim=1).mean()
+      else:
+         sampled_a = torch.multinomial(probs_s, num_samples=1)
+         log_probs_sa = log_probs_s.gather(1, sampled_a)
+         q_sa = q_s.gather(1, sampled_a)
+         policy_loss = (log_probs_sa * (self.alpha * log_probs_sa - q_sa)).mean()
 
-        self.optimizer_pi.zero_grad()
-        policy_loss.backward()
-        self.optimizer_pi.step()
+      self.optimizer_pi.zero_grad()
+      policy_loss.backward()
+      self.optimizer_pi.step()
 
-        # Target network update
-        for p, tp in zip(self.Q1.parameters(), self.Q1_target.parameters()):
+      # Target network update
+      for p, tp in zip(self.Q1.parameters(), self.Q1_target.parameters()):
+         tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)
+      if self.double_q:
+         for p, tp in zip(self.Q2.parameters(), self.Q2_target.parameters()):
             tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)
-        if self.double_q:
-            for p, tp in zip(self.Q2.parameters(), self.Q2_target.parameters()):
-                tp.data.copy_(self.tau * p.data + (1 - self.tau) * tp.data)
