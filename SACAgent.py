@@ -25,8 +25,7 @@ class NeuralNetwork(nn.Module):
 
 class SACAgent:
    def __init__(self, state_dim, n_actions, lr, gamma, hidden_dim, alpha, buffer_size, batch_size,
-                learning_starts,
-                tau, full_expectation, double_q):
+                learning_starts, tau, full_expectation, double_q, update_freq, update_num):
       self.gamma = gamma
       self.alpha = alpha
       self.buffer_size = buffer_size
@@ -76,12 +75,21 @@ class SACAgent:
 
    def add_experience(self, s, a, r, next_s, d):
       idx = self.buffer_index % self.buffer_size
-      self.replay_buffer["s"][idx] = torch.tensor(s, dtype=torch.float, device=self.device)
-      self.replay_buffer["a"][idx] = torch.tensor(a, dtype=torch.int64, device=self.device)
-      self.replay_buffer["r"][idx] = torch.tensor(r, dtype=torch.float, device=self.device)
-      self.replay_buffer["next_s"][idx] = torch.tensor(next_s, dtype=torch.float,
-                                                       device=self.device)
-      self.replay_buffer["d"][idx] = torch.tensor(d, dtype=torch.float, device=self.device)
+      if not torch.is_tensor(s):
+         s = torch.as_tensor(s, dtype=torch.float, device=self.device)
+      if not torch.is_tensor(a):
+         a = torch.as_tensor(a, dtype=torch.int64, device=self.device)
+      if not torch.is_tensor(r):
+         r = torch.as_tensor(r, dtype=torch.float, device=self.device)
+      if not torch.is_tensor(next_s):
+         next_s = torch.as_tensor(next_s, dtype=torch.float, device=self.device)
+      if not torch.is_tensor(d):
+         d = torch.as_tensor(d, dtype=torch.float, device=self.device)
+      self.replay_buffer["s"][idx].copy_(s)
+      self.replay_buffer["a"][idx].copy_(a)
+      self.replay_buffer["r"][idx].copy_(r)
+      self.replay_buffer["next_s"][idx].copy_(next_s)
+      self.replay_buffer["d"][idx].copy_(d)
       self.buffer_index += 1
       self.buffer_update_count += 1
 
@@ -92,7 +100,8 @@ class SACAgent:
 
    def select_action_sample(self, s):
       # Convert state to tensor and forward through policy network to get probabilities
-      s = torch.tensor(s, dtype=torch.float, device=self.device)
+      if not torch.is_tensor(s):
+         s = torch.tensor(s, dtype=torch.float, device=self.device)
       with torch.no_grad():
          log_probs_s = self.pi(s)
       probs_s = log_probs_s.exp()
@@ -100,7 +109,8 @@ class SACAgent:
 
    def select_action_greedy(self, s):
       # For evaluation, choose the action with the highest probability
-      s = torch.tensor(s, dtype=torch.float, device=self.device)
+      if not torch.is_tensor(s):
+         s = torch.tensor(s, dtype=torch.float, device=self.device)
       with torch.no_grad():
          log_probs_s = self.pi(s)
       return torch.argmax(log_probs_s).item()

@@ -26,10 +26,10 @@ def evaluation(agent: SACAgent):
 def run_single_repetition(task):
    # Run a single repetition of the experiment
    config_id, rep_id, n_envsteps, eval_interval, params = task
-   params = params.copy()
+   #params = params.copy()
 
-   update_freq = params.pop("update_freq")
-   update_num = params.pop("update_num")
+   update_freq = params["update_freq"]
+   update_num = params["update_num"]
 
    # Create a new environment and agent for each repetition
    env = gym.make('CartPole-v1')
@@ -77,7 +77,7 @@ def conf_filename(outdir, params, suffix):
 
 def run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval):
    # Run experiments with different parameter combinations
-   processes = 6  # Number of parallel processes
+   processes = 5  # Number of parallel processes
 
    os.makedirs(outdir, exist_ok=True)
 
@@ -143,11 +143,11 @@ if __name__ == '__main__':
 
    param_combinations = [
       # Experiment 1
-      change_params({"alpha": 0.3}),
-      change_params({"alpha": 0.4}),
+      change_params({"batch_size": 50}),
+      change_params({"batch_size": 75}),
       baseline_params,
-      change_params({"alpha": 0.6}),
-      change_params({"alpha": 0.7}),
+      change_params({"batch_size": 125}),
+      change_params({"batch_size": 150}),
       # Experiment 2
       # baseline_params,
       # change_params({"double_q": False}),
@@ -156,15 +156,15 @@ if __name__ == '__main__':
    ]
 
    n_repetitions = 5  # Number of repetitions for each experiment
-   #n_envsteps = 200_000
-   n_envsteps = 1_000_000  # Number of environment steps
+   n_envsteps = 200_000
+   #n_envsteps = 1_000_000  # Number of environment steps
    eval_interval = 1000  # Interval for evaluation
    outdir = f"evaluations_{n_envsteps}_envsteps"  # Output directory for results
 
    run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval,
-               "Discrete SAC Learning Curve: Effect of alpha",
-               ["alpha"], "alphalong.png")
+               "Discrete SAC Learning Curve: Effect of batch_size",
+               ["batch_size"], "batch_size.png")
    # create_plot(outdir, param_combinations[4:], n_repetitions, n_envsteps, eval_interval,
    #             "Discrete SAC Learning Curve:\nEffects of Full Expectation Updates and Clipped "
    #             "Double Q-learning",
