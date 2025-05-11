@@ -129,16 +129,30 @@ if __name__ == '__main__':
         return new_params
 
     param_combinations = [
-        # Experiment 1
+        # Experiment 1 (Expected Target + Clipped Double Q-learning)
         change_params({"alpha": 0.0}),
         change_params({"alpha": 0.2}),
         baseline_params,
         change_params({"alpha": 1.0}),
-        # Experiment 2
+        # Experiment 2 (Update freq)
+        change_params({"update_freq": 1}),
         baseline_params,
+        change_params({"update_freq": 10}),
+        # Experiment 3 (Expected Target + Single Q-learning)
+        change_params({"alpha": 0.0, "double_q": False}),
+        change_params({"alpha": 0.2, "double_q": False}),
         change_params({"double_q": False}),
+        change_params({"alpha": 1.0, "double_q": False}),
+        # Experiment 4 (Sample Target + Clipped Double Q-learning)
+        change_params({"alpha": 0.0, "full_expectation": False}),
+        change_params({"alpha": 0.2, "full_expectation": False}),
         change_params({"full_expectation": False}),
+        change_params({"alpha": 1.0, "full_expectation": False}),
+        # Experiment 5 (Sample Target + Single Q-learning)
+        change_params({"alpha": 0.0, "full_expectation": False, "double_q": False}),
+        change_params({"alpha": 0.2, "full_expectation": False, "double_q": False}),
         change_params({"full_expectation": False, "double_q": False}),
+        change_params({"alpha": 1.0, "full_expectation": False, "double_q": False}),
     ]
 
     n_repetitions = 5  # Number of repetitions for each experiment
@@ -148,8 +162,17 @@ if __name__ == '__main__':
 
     run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
     create_plot(outdir, param_combinations[:4], n_repetitions, n_envsteps, eval_interval,
-                "Discrete SAC Learning Curve: Effect of alpha",
-                ["alpha"], "alpha.png")
-    create_plot(outdir, param_combinations[4:], n_repetitions, n_envsteps, eval_interval,
-                "Discrete SAC Learning Curve:\nEffects of Full Expectation Updates and Clipped Double Q-learning",
-                ["full_expectation", "double_q"], "tricks.png")
+                "Discrete SAC Learning Curve: Effect of alpha\n(Expected Target + Clipped Double Q-learning)",
+                ["alpha"], "alpha_et_dq.png")
+    create_plot(outdir, param_combinations[4:7], n_repetitions, n_envsteps, eval_interval,
+                "Discrete SAC Learning Curve: Effects of update frequency\n(Expected Target + Clipped Double Q-learning)",
+                ["update_freq"], "freq.png")
+    create_plot(outdir, param_combinations[7:11], n_repetitions, n_envsteps, eval_interval,
+                "Discrete SAC Learning Curve: Effect of alpha\n(Expected Target + Single Q-learning)",
+                ["alpha"], "alpha_et_sq.png")
+    create_plot(outdir, param_combinations[11:15], n_repetitions, n_envsteps, eval_interval,
+                "Discrete SAC Learning Curve: Effect of alpha\n(Sample Target + Clipped Double Q-learning)",
+                ["alpha"], "alpha_st_dq.png")
+    create_plot(outdir, param_combinations[15:], n_repetitions, n_envsteps, eval_interval,
+                "Discrete SAC Learning Curve: Effect of alpha\n(Sample Target + Single Q-learning)",
+                ["alpha"], "alpha_st_sq.png")
