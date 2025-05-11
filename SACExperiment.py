@@ -143,11 +143,11 @@ if __name__ == '__main__':
 
    param_combinations = [
       # Experiment 1
-      change_params({"batch_size": 50}),
-      change_params({"batch_size": 75}),
+      change_params({"update_freq": 1}),
+      change_params({"update_freq": 3}),
       baseline_params,
-      change_params({"batch_size": 125}),
-      change_params({"batch_size": 150}),
+      change_params({"update_freq": 7}),
+      change_params({"update_freq": 9}),
       # Experiment 2
       # baseline_params,
       # change_params({"double_q": False}),
@@ -163,8 +163,8 @@ if __name__ == '__main__':
 
    run_experiments(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval)
    create_plot(outdir, param_combinations, n_repetitions, n_envsteps, eval_interval,
-               "Discrete SAC Learning Curve: Effect of batch_size",
-               ["batch_size"], "batch_size.png")
+               "Discrete SAC Learning Curve: Effect of update_freq",
+               ["update_freq"], "update_freq.png")
    # create_plot(outdir, param_combinations[4:], n_repetitions, n_envsteps, eval_interval,
    #             "Discrete SAC Learning Curve:\nEffects of Full Expectation Updates and Clipped "
    #             "Double Q-learning",

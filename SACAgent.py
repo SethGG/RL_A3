@@ -63,12 +63,12 @@ class SACAgent:
 
       # Initialize replay buffer
       self.replay_buffer = {
-         "s": torch.empty((self.buffer_size, state_dim), dtype=torch.float, device=self.device),
+         "s": torch.empty((self.buffer_size, state_dim), dtype=torch.float32, device=self.device),
          "a": torch.empty((self.buffer_size, 1), dtype=torch.int64, device=self.device),
-         "r": torch.empty((self.buffer_size, 1), dtype=torch.float, device=self.device),
-         "next_s": torch.empty((self.buffer_size, state_dim), dtype=torch.float,
+         "r": torch.empty((self.buffer_size, 1), dtype=torch.float32, device=self.device),
+         "next_s": torch.empty((self.buffer_size, state_dim), dtype=torch.float32,
                                device=self.device),
-         "d": torch.empty((self.buffer_size, 1), dtype=torch.float, device=self.device),
+         "d": torch.empty((self.buffer_size, 1), dtype=torch.float32, device=self.device),
       }
       self.buffer_index = 0
       self.buffer_update_count = 0
@@ -76,15 +76,15 @@ class SACAgent:
    def add_experience(self, s, a, r, next_s, d):
       idx = self.buffer_index % self.buffer_size
       if not torch.is_tensor(s):
-         s = torch.as_tensor(s, dtype=torch.float, device=self.device)
+         s = torch.as_tensor(s, dtype=torch.float32, device=self.device)
       if not torch.is_tensor(a):
          a = torch.as_tensor(a, dtype=torch.int64, device=self.device)
       if not torch.is_tensor(r):
-         r = torch.as_tensor(r, dtype=torch.float, device=self.device)
+         r = torch.as_tensor(r, dtype=torch.float32, device=self.device)
       if not torch.is_tensor(next_s):
-         next_s = torch.as_tensor(next_s, dtype=torch.float, device=self.device)
+         next_s = torch.as_tensor(next_s, dtype=torch.float32, device=self.device)
       if not torch.is_tensor(d):
-         d = torch.as_tensor(d, dtype=torch.float, device=self.device)
+         d = torch.as_tensor(d, dtype=torch.float32, device=self.device)
       self.replay_buffer["s"][idx].copy_(s)
       self.replay_buffer["a"][idx].copy_(a)
       self.replay_buffer["r"][idx].copy_(r)
@@ -101,7 +101,7 @@ class SACAgent:
    def select_action_sample(self, s):
       # Convert state to tensor and forward through policy network to get probabilities
       if not torch.is_tensor(s):
-         s = torch.tensor(s, dtype=torch.float, device=self.device)
+         s = torch.tensor(s, dtype=torch.float32, device=self.device)
       with torch.no_grad():
          log_probs_s = self.pi(s)
       probs_s = log_probs_s.exp()
@@ -110,7 +110,7 @@ class SACAgent:
    def select_action_greedy(self, s):
       # For evaluation, choose the action with the highest probability
       if not torch.is_tensor(s):
-         s = torch.tensor(s, dtype=torch.float, device=self.device)
+         s = torch.tensor(s, dtype=torch.float32, device=self.device)
       with torch.no_grad():
          log_probs_s = self.pi(s)
       return torch.argmax(log_probs_s).item()
