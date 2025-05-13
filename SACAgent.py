@@ -7,6 +7,7 @@ import random
 
 
 class NeuralNetwork(nn.Module):
+    # Simple feedforward neural network, which can be used for both Q-value approximation and policy approximation
     def __init__(self, state_dim, n_actions, hidden_dim, log_softmax=False):
         super().__init__()
         self.log_softmax = log_softmax
@@ -80,6 +81,7 @@ class SACAgent:
         return a
 
     def add_experience(self, s, a, r, next_s, d):
+        # Convert experience to tensors and append to replay buffer
         s = torch.tensor(s, dtype=torch.float, device=self.device)
         a = torch.tensor(a, dtype=torch.int64, device=self.device)
         r = torch.tensor(r, dtype=torch.float, device=self.device)
@@ -88,6 +90,7 @@ class SACAgent:
         self.replay_buffer.append((s, a, r, next_s, d))
 
     def update(self):
+        # Update the Q-networks and policy network
         if len(self.replay_buffer) < self.learning_starts:
             return
 

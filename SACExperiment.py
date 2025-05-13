@@ -46,12 +46,15 @@ def run_single_repetition(task):
         agent.add_experience(s, a, r, s_next, done)
 
         if envstep % update_freq == 0:
+            # Update the agent's parameters
             for _ in range(update_num):
+                # Perform a training step
                 agent.update()
 
         s = s_next
 
         if done or trunc:
+            # Reset the environment if the episode is done or truncated
             s, info = env.reset()
 
         if envstep % eval_interval == 0:
@@ -165,7 +168,7 @@ if __name__ == '__main__':
                 "Discrete SAC Learning Curve: Effect of alpha\n(Expected Target + Clipped Double Q-learning)",
                 ["alpha"], "alpha_et_dq.png")
     create_plot(outdir, param_combinations[4:7], n_repetitions, n_envsteps, eval_interval,
-                "Discrete SAC Learning Curve: Effects of update frequency\n(Expected Target + Clipped Double Q-learning)",
+                "Discrete SAC Learning Curve: Effect of update frequency\n(Expected Target + Clipped Double Q-learning)",
                 ["update_freq"], "freq.png")
     create_plot(outdir, param_combinations[7:11], n_repetitions, n_envsteps, eval_interval,
                 "Discrete SAC Learning Curve: Effect of alpha\n(Expected Target + Single Q-learning)",
@@ -176,3 +179,23 @@ if __name__ == '__main__':
     create_plot(outdir, param_combinations[15:], n_repetitions, n_envsteps, eval_interval,
                 "Discrete SAC Learning Curve: Effect of alpha\n(Sample Target + Single Q-learning)",
                 ["alpha"], "alpha_st_sq.png")
+
+    # Configs for the comparison plot, uses results from previous assignments so this won´t run if these are not present
+    comp_dir = "comp_results"
+    comp_params = [
+        # Best DQN
+        {"algo": "DQN", "gamma": 0.99, "alpha": 0.001, "update_freq": 5, "epsilon": 1,
+            "decay_rate": 0.9995, "hidden_dim": 64, "tn": True, "er": True},
+        # Best REINFORCE
+        {"algo": "REINFORCE", "alpha": 0.001, "gamma": 0.99, "hidden_dim": 64, "normalize": True},
+        # Best A2C
+        {"algo": "A2C", "alpha": 0.001, "gamma": 0.99, "hidden_dim": 64,
+            "estim_depth": 5, "update_episodes": 1, "use_advantage": True},
+        # Best SAC
+        {"algo": "SAC", "lr": 0.001, "gamma": 0.99, "hidden_dim": 64, "alpha": 0.5, "buffer_size": 100_000,
+         "batch_size": 100, "learning_starts": 1000, "tau": 0.005, "full_expectation": True,
+         "double_q": True, "update_freq": 5, "update_num": 1}
+    ]
+
+    create_plot(comp_dir, comp_params, n_repetitions, n_envsteps, eval_interval, "Deep RL algorithms on CartPole-v1",
+                label_params=["algo"], plotfile="comp.png")
